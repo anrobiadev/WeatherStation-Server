@@ -10,14 +10,15 @@ An ESP8266-based amateur-radio **weather server** with a self-contained web inte
 
 1. [What it does](#what-it-does)
 2. [Hardware](#hardware)
-3. [Building and flashing (PlatformIO)](#building-and-flashing-platformio)
-4. [First start — WiFi setup](#first-start--wifi-setup)
-5. [The web interface](#the-web-interface)
-6. [Settings page](#settings-page)
-7. [History graphs — how they work](#history-graphs--how-they-work)
-8. [APRS reporting](#aprs-reporting)
-9. [Tips & troubleshooting](#tips--troubleshooting)
-10. [Credits & licence](#credits--licence)
+3. [Flashing the pre-built firmware (.bin)](#flashing-the-pre-built-firmware-bin)
+4. [Building and flashing (PlatformIO)](#building-and-flashing-platformio)
+5. [First start — WiFi setup](#first-start--wifi-setup)
+6. [The web interface](#the-web-interface)
+7. [Settings page](#settings-page)
+8. [History graphs — how they work](#history-graphs--how-they-work)
+9. [APRS reporting](#aprs-reporting)
+10. [Tips & troubleshooting](#tips--troubleshooting)
+11. [Credits & licence](#credits--licence)
 
 ---
 
@@ -44,6 +45,57 @@ The interface language is **English only**, in an amber-on-black theme.
 | Power | Stable supply. Mount the sensor away from the board's own heat. |
 
 The BME280 is read in **forced mode** and only sampled on demand (see *Sensor Read Interval*), which avoids the self-heating that continuous-mode sensors suffer from.
+
+---
+
+## Flashing the pre-built firmware (.bin)
+
+If you just want to run the station without compiling anything, download the ready-made firmware from the project's **Releases** page on GitHub and flash it to a blank ESP8266. The `.bin` already contains everything — you do **not** need PlatformIO or the source code for this.
+
+### What you need
+
+- An **ESP8266** board (ESP-12E / ESP-12F, NodeMCU, Wemos D1 mini …).
+- A **USB cable** — and, for bare ESP-12 modules, a USB-to-serial (TTL) adapter.
+- A flashing tool: the command-line **esptool**, or a GUI such as **NodeMCU PyFlasher** (Windows/macOS/Linux) or the **Espressif Flash Download Tool** (Windows).
+- The **`.bin`** file downloaded from the Releases page.
+
+### Find the serial port
+
+- **Windows:** `COM3`, `COM4`, … (Device Manager → Ports).
+- **Linux:** `/dev/ttyUSB0` (you may need to be in the `dialout` group).
+- **macOS:** `/dev/cu.usbserial-XXXX` or `/dev/cu.wchusbserial-XXXX`.
+
+> Bare ESP-12 modules must be put into **flash mode**: hold **GPIO0 to GND** while powering up or pressing reset. Dev boards (NodeMCU, D1 mini) do this automatically.
+
+### Option A — esptool (command line, recommended)
+
+Install once:
+
+```bash
+pip install esptool
+```
+
+Erase the chip (recommended for a clean install on a new device), then write the firmware at flash address `0x0`:
+
+```bash
+esptool.py --chip esp8266 --port <PORT> erase_flash
+esptool.py --chip esp8266 --port <PORT> --baud 460800 write_flash --flash_size detect 0x0 <firmware>.bin
+```
+
+Replace `<PORT>` with your serial port (e.g. `COM3`, `/dev/ttyUSB0`) and `<firmware>.bin` with the downloaded file. If `460800` baud is unstable, drop to `115200`.
+
+### Option B — NodeMCU PyFlasher (GUI)
+
+1. Open NodeMCU PyFlasher.
+2. Select the **serial port** and the **`.bin`** file.
+3. Baud rate `115200`, Flash mode **DIO**, **Erase flash: yes** (for a clean new device).
+4. Click **Flash NodeMCU** and wait until it finishes.
+
+### After flashing
+
+Power-cycle the board. A freshly flashed device boots into the **WiFi setup portal** (`MiniWX-Setup-XXXX`) — follow [First start — WiFi setup](#first-start--wifi-setup) to join it to your network, then open the dashboard and configure it from the [Settings page](#settings-page).
+
+> **Updating an existing station** is even easier: you don't need to re-flash over USB. Build a firmware `.bin` (or use the Release file) and upload it through the station's built-in **OTA** update, over WiFi.
 
 ---
 
