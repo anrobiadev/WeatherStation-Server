@@ -214,6 +214,33 @@ typedef struct  {
 WeatherStruct wx;    //declare la structure
 WeatherStructPtr wx_ptr = &wx;
 
+// HEAT INDEX ROUTINE - (C) 2016 Tyler Glenn
+// Thanks, the whole library is a great work indeed,
+// maybe i'll use it in a next release.
+/*
+  Copyright (C) 2016  Tyler Glenn
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+  Written: Dec 30 2015.
+  Last Updated: Dec 23 2017.
+
+  This header must be included in any derived code or copies of the code.
+*/
+
+//*** Heat Index coefficients from the above library
+
 #define hi_coeff1 -42.379
 #define hi_coeff2   2.04901523
 #define hi_coeff3  10.14333127
@@ -1167,7 +1194,7 @@ void handleGraphs() {
   message.replace(F("{{svg_pres}}"), "Pressure (hPa)");
   message.replace(F("{{svg_rhum}}"), "relative Humidity (%)");
   message.replace(F("{{svg_rssi}}"), "rssi (dbm)");
-  message.replace(F("{{svg_grid}}"), FPSTR(HTTP_SVG_GRID));
+  message.replace(F("{{svg_grid}}"), "");   // self-contained drawChart() draws its own background/grid/axes
 
   message += FPSTR(HTTP_EXIT_BUTN);
   message.replace(F("{{exit_btn}}"), "Exit");
