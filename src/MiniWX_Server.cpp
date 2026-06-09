@@ -30,7 +30,7 @@ DNSServer dnsServer;                       // captive portal pentru modul de con
 //**************************************
 //* INTERNAL USE & DEBUG               *
 //**************************************
-const char SOFT_VER[] = "v1.7.2";
+const char SOFT_VER[] = "v1.7.3";
 //#define DEBUG_READSETTINGSFILE
 //#define DEBUG_FORM_REPLIES
 #define DISPLAY_RW_OUTPUT
