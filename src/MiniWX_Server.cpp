@@ -24,13 +24,19 @@ BME280 mySensor;
 
 // webserver for parameters & main pages
 ESP8266WebServer server(80);
-DNSServer dnsServer;                       // captive portal pentru modul de configurare AP
-#define WIFI_CONNECT_TIMEOUT_MS 25000      // daca nu se conecteaza in 25s -> portal AP
+DNSServer dnsServer;                       // captive portal for AP configuration mode
+#define WIFI_CONNECT_TIMEOUT_MS 25000      // if it doesn't connect within 25s -> AP portal
+
+//**** Auto-recovery watchdogs (for remote / off-grid operation) ****
+#define WIFI_LOST_RESTART_MS     (10UL*60UL*1000UL)   // WiFi disconnected 10 min -> restart
+#define INTERNET_LOST_RESTART_MS (10UL*60UL*1000UL)   // WiFi up but no internet 10 min -> restart
+#define NET_PROBE_INTERVAL_MS    (60UL*1000UL)        // test internet reachability every 60 s
+#define AP_PORTAL_TIMEOUT_MS     (10UL*60UL*1000UL)   // stuck in hotspot 10 min -> reboot & retry saved network
 
 //**************************************
 //* INTERNAL USE & DEBUG               *
 //**************************************
-const char SOFT_VER[] = "v1.7.3";
+const char SOFT_VER[] = "v1.7.4";
 //#define DEBUG_READSETTINGSFILE
 //#define DEBUG_FORM_REPLIES
 #define DISPLAY_RW_OUTPUT
@@ -39,11 +45,11 @@ const char SOFT_VER[] = "v1.7.3";
 //sample data every 150000ms (2'30") for successive graphs
 #define SAMPLING_GRAPHS_DATA  150000
 
-//*** Offset de corectie temperatura (grade C). 0.0 = fara corectie.
-//*** De folosit ca reglaj fin DUPA trecerea pe forced mode, daca mai ramane bias.
+//*** Temperature correction offset (deg C). 0.0 = no correction.
+//*** Use as a fine adjustment AFTER switching to forced mode, if any bias remains.
 #define TEMP_OFFSET_DEF 0.0f   // default BME280 temp offset; now configurable from /settings (sets.tempOffset)
 
-//*** Interval implicit de citire senzor (secunde), reglabil din pagina web /settings
+//*** Default sensor read interval (seconds), adjustable from the /settings web page
 #define MEAS_SECONDS_DEF 120
 
 //**************************************
@@ -112,9 +118,9 @@ const char* OTA_passw = "esp8266";
 #endif
 
 //**** use static ip instead of dns one
-//**** DEZACTIVAT: la pornire foloseste DHCP (IP de la router).
-//**** Daca vrei IP static, activeaza-l din pagina web /settings (bifa + adresa),
-//**** sau de-comenteaza linia de mai jos.
+//**** DISABLED: at startup it uses DHCP (IP from the router).
+//**** If you want a static IP, enable it from the /settings web page (checkbox + address),
+//**** or uncomment the line below.
 //#define USE_STATIC_IP
 //* change to reflect your net configuration
 String static_ip =      "192.168.88.191";   // STATIC IP (= ce interogheaza SmallTV)
@@ -171,7 +177,7 @@ typedef struct {
   //*NTP
   char NTP_Server[20];
   unsigned char NTP_SYNC_DELAY;
-  int measSeconds;          // interval citire senzor (secunde) - forced, on-demand
+  int measSeconds;          // sensor read interval (seconds) - forced, on-demand
   float tempOffset;         // BME280 temperature correction (deg C) - web-configurable
   float timeZone;           // UTC offset (hours, e.g. 3.0 for UTC+3) - web-configurable
 } Settings, *SettingsPtr;
@@ -283,7 +289,7 @@ char car;
 //**************************************
 const char WGserver[] PROGMEM = "weatherstation.wunderground.com";
 const char WEBPAGE[] PROGMEM = "GET /weatherstation/updateweatherstation.php?";
-// ===== Prototipuri functii (generate la conversia .ino -> .cpp) =====
+// ===== Function prototypes (generated during the .ino -> .cpp conversion) =====
 void calcDewPoint();
 void Send2Wunder();
 void SetOTA();
@@ -331,7 +337,7 @@ void readSettingsFile();
 void createEraselogger();
 void showlogger();
 void ssidConnect();
-// ===== sfarsit prototipuri =====
+// ===== end of prototypes =====
 
 
 
@@ -488,7 +494,7 @@ void setup(void)
   Wire.begin();
 
   if (!SPIFFS.begin()) {                 // mount SPIFFS (auto-format la prima folosire)
-    Serial.println(F("SPIFFS mount esuat -> formatez..."));
+    Serial.println(F("SPIFFS mount failed -> formatting..."));
     SPIFFS.format();
     SPIFFS.begin();
   }
@@ -500,15 +506,15 @@ void setup(void)
   }
 
   if (SPIFFS.exists("/ssid.txt") == 0) {
-    Serial.println("^:WARNING:^ no ssid config -> pornesc portalul AP de configurare WiFi");
-    startConfigPortal();   // ridica hotspot, salveaza SSID din browser si reporneste (nu revine)
+    Serial.println("^:WARNING:^ no ssid config -> starting the WiFi AP configuration portal");
+    startConfigPortal();   // raises the hotspot, saves the SSID from the browser and reboots (does not return)
   }
   else {
     readSsidFile();
   }
 
   if (SPIFFS.exists("/station.txt") == 0) {
-    Serial.println("^:WARNING:^ no station config -> scriu valori implicite (configurabile din browser /settings)");
+    Serial.println("^:WARNING:^ no station config -> writing defaults (configurable from the /settings browser page)");
     strcpy(station.callsign, "NOCALL");
     strcpy(station.tlm_callsign, "NOCALL");
     strcpy(station.latitude,  "0.0");
@@ -560,10 +566,10 @@ void setup(void)
     //read the saved settings
     readSettingsFile();
   }
-  sets.usewunder = false;   // Wunderground dezactivat (scos din MiniWX Station)
+  sets.usewunder = false;   // Wunderground disabled (removed from MiniWX Station)
 
-  // Configurarea se face din browser. Meniul serial ramane optional:
-  // de-comenteaza linia urmatoare daca vrei meniul serial la pornire.
+  // Configuration is done from the browser. The serial menu remains optional:
+  // uncomment the next line if you want the serial menu at startup.
   // if (detectMenu() == 1) configMenu();
 
   ssidConnect();
@@ -582,7 +588,7 @@ void setup(void)
   server.on("/settings", handleSettings);
   server.on("/jquery", handleJQuery);
   server.on("/graphs", handleGraphs);
-  server.on("/wifi", handleWifiPortal);      // reconfigurare WiFi din browser
+  server.on("/wifi", handleWifiPortal);      // WiFi reconfiguration from the browser
   server.on("/wifisave", handleWifiSave);
   server.onNotFound(handleNotFound);
 
@@ -1222,6 +1228,54 @@ void handleGraphs() {
 //*************************************************
 //* MAIN PROGRAM LOOP
 //*************************************************
+// ===== Auto-recovery: network watchdogs =====
+unsigned long wifiDownSince  = 0;
+unsigned long lastInternetOK = 0;
+unsigned long lastNetProbe   = 0;
+
+// Lightweight, non-abusive internet reachability test: TCP-connect to a public DNS resolver.
+bool internetReachable() {
+  WiFiClient probe;
+  probe.setTimeout(2000);
+  IPAddress d1(1, 1, 1, 1), d2(8, 8, 8, 8);
+  if (probe.connect(d1, 53)) { probe.stop(); return true; }
+  if (probe.connect(d2, 53)) { probe.stop(); return true; }
+  return false;
+}
+
+// Called every loop(): reboots the board if WiFi or internet stay down too long,
+// so a remote/off-grid unit recovers on its own (it never gets stuck).
+void netWatchdog() {
+  unsigned long now = millis();
+
+  if (WiFi.status() != WL_CONNECTED) {              // ---- WiFi is down ----
+    if (wifiDownSince == 0) wifiDownSince = now;
+    if (now - wifiDownSince >= WIFI_LOST_RESTART_MS) {
+      Serial.println(F("[WATCHDOG] WiFi lost > 10 min -> restart"));
+      delay(50);
+      ESP.restart();
+    }
+    return;                                         // skip internet checks while WiFi is down
+  }
+
+  // ---- WiFi is connected ----
+  if (wifiDownSince != 0) {                         // just reconnected: fresh internet window
+    wifiDownSince  = 0;
+    lastInternetOK = now;
+  }
+  if (lastInternetOK == 0) lastInternetOK = now;    // first initialization
+
+  if (now - lastNetProbe >= NET_PROBE_INTERVAL_MS) {
+    lastNetProbe = now;
+    if (internetReachable()) lastInternetOK = now;
+  }
+  if (now - lastInternetOK >= INTERNET_LOST_RESTART_MS) {
+    Serial.println(F("[WATCHDOG] internet lost > 10 min -> restart"));
+    delay(50);
+    ESP.restart();
+  }
+}
+
 void loop()
 {
 #ifdef USE_OTA_UPGRADE
@@ -1230,6 +1284,8 @@ void loop()
 #endif
 
   server.handleClient();
+
+  netWatchdog();   // auto-recovery for remote/off-grid operation
 
   updateTime();
 
@@ -1475,6 +1531,7 @@ void Send2APRS()
   else
   {
     Serial.println(F("done"));
+    lastInternetOK = millis();   // successful APRS contact = internet OK
 
     client.println(login);
     Serial.println(login);
@@ -1624,7 +1681,7 @@ void initBme()
   //  0, Sleep mode
   //  1 or 2, Forced mode
   //  3, Normal mode
-  mySensor.settings.runMode = 1; //Forced mode (reduce auto-incalzirea senzorului)
+  mySensor.settings.runMode = 1; //Forced mode (reduces sensor self-heating)
 
   //tStandby can be:
   //  0, 0.5ms
@@ -1762,22 +1819,22 @@ void initBme()
 }
 
 //*** Retrieve values from BME280 and fill in the structure
-unsigned long lastBmeMeasMs = 0;   // momentul ultimei masuratori reale (forced, on-demand)
+unsigned long lastBmeMeasMs = 0;   // timestamp of the last real measurement (forced, on-demand)
 
 void getBmeValues() {
 
   float pres;
 
-  //*** Masoara REAL doar la intervalul de citire setat in /settings (measSeconds).
-  //*** Intre masuratori se returneaza valorile din cache (wx), ca sa nu citeasca la fiecare request.
+  //*** Measures for REAL only at the read interval set in /settings (measSeconds).
+  //*** Between measurements the cached values (wx) are returned, to avoid reading on every request.
   {
-    unsigned long _iv = (unsigned long)sets.measSeconds * 1000UL;          // secunde -> ms
+    unsigned long _iv = (unsigned long)sets.measSeconds * 1000UL;          // seconds -> ms
     if (_iv < 5000UL) _iv = 5000UL;                                        // plafon minim de siguranta
-    if (lastBmeMeasMs != 0 && (millis() - lastBmeMeasMs) < _iv) return;    // foloseste cache
+    if (lastBmeMeasMs != 0 && (millis() - lastBmeMeasMs) < _iv) return;    // use cache
     lastBmeMeasMs = millis();
   }
 
-  //*** Forced mode: o singura masuratoare la cerere, apoi senzorul revine in sleep.
+  //*** Forced mode: a single on-demand measurement, then the sensor returns to sleep.
   //*** Elimina auto-incalzirea (si reduce consumul la cativa uA).
   mySensor.setMode(MODE_FORCED);
   { unsigned long _t0 = millis();
@@ -1791,7 +1848,7 @@ void getBmeValues() {
   else
     wx.pressure = 0.0f;
 
-  wx.temperatureF = wx.temperatureC * 1.8f + 32.0f;   // din C (cu offset)
+  wx.temperatureF = wx.temperatureC * 1.8f + 32.0f;   // from C (with offset)
   wx.humidity =  mySensor.readFloatHumidity();
   wx.heatindex = CalcHeatIndex(wx.temperatureC, wx.humidity);
 
@@ -2329,8 +2386,8 @@ void showlogger()
 //***********************************************************
 
 //***********************************************************
-//* AP CONFIG PORTAL - provisioning WiFi din browser
-//* (inlocuieste configurarea SSID din meniul serial)
+//* AP CONFIG PORTAL - WiFi provisioning from the browser
+//* (replaces the SSID configuration from the serial menu)
 //***********************************************************
 void handleWifiPortal() {
   String p;
@@ -2343,23 +2400,23 @@ void handleWifiPortal() {
          "border:1px solid #bbb;border-radius:6px;font-size:15px}"
          "button{width:100%;padding:11px;border:0;border-radius:6px;background:#1565c0;color:#fff;font-size:16px}"
          ".muted{color:#888;font-size:13px}</style></head><body>");
-  p += F("<h2>MiniWX &mdash; configurare WiFi</h2>");
+  p += F("<h2>MiniWX &mdash; WiFi setup</h2>");
   p += F("<form method='POST' action='/wifisave'>");
-  p += F("<label>Retele gasite</label>"
+  p += F("<label>Networks found</label>"
          "<select onchange=\"document.getElementById('ssid').value=this.value\">");
-  p += F("<option value=''>-- alege reteaua --</option>");
+  p += F("<option value=''>-- select network --</option>");
   int nets = WiFi.scanNetworks();
   for (int i = 0; i < nets; i++) {
-    String enc = (WiFi.encryptionType(i) == ENC_TYPE_NONE) ? String(F(" (deschis)")) : String("");
+    String enc = (WiFi.encryptionType(i) == ENC_TYPE_NONE) ? String(F(" (open)")) : String("");
     p += "<option value='" + WiFi.SSID(i) + "'>" + WiFi.SSID(i) +
          " (" + WiFi.RSSI(i) + " dBm)" + enc + "</option>";
   }
   p += F("</select>");
   p += F("<label>SSID</label><input id='ssid' name='ssid' value=''>");
-  p += F("<label>Parola</label><input name='pass' type='password' value=''>");
-  p += F("<button type='submit'>Salveaza si reporneste</button></form>");
-  p += F("<p class='muted'>Dupa salvare placa reporneste si se conecteaza la reteaua aleasa. "
-         "Daca nu reuseste, revine automat in acest mod de configurare.</p>");
+  p += F("<label>Password</label><input name='pass' type='password' value=''>");
+  p += F("<button type='submit'>Save and reboot</button></form>");
+  p += F("<p class='muted'>After saving, the board reboots and connects to the selected network. "
+         "If it fails, it automatically returns to this setup mode.</p>");
   p += F("</body></html>");
   server.send(200, "text/html", p);
 }
@@ -2371,50 +2428,50 @@ void handleWifiSave() {
     server.arg("ssid").toCharArray(internet.ssid, sizeof(internet.ssid));
     server.arg("pass").toCharArray(internet.password, sizeof(internet.password));
     writeSsidFile();
-    Serial.print(F("[WiFi] SSID salvat: ")); Serial.println(internet.ssid);
+    Serial.print(F("[WiFi] SSID saved: ")); Serial.println(internet.ssid);
     server.send(200, "text/html",
       F("<!DOCTYPE html><html><head><meta charset='utf-8'>"
         "<meta http-equiv='refresh' content='12;url=/'></head>"
         "<body style='font-family:sans-serif'>"
-        "<h3>Salvat. Repornesc si ma conectez...</h3>"
-        "<p>Daca reteaua e corecta, placa apare in retea in cateva secunde.</p></body></html>"));
+        "<h3>Saved. Rebooting and connecting...</h3>"
+        "<p>If the network is correct, the board appears on the network within a few seconds.</p></body></html>"));
     delay(900);
     ESP.restart();
   } else {
     server.send(200, "text/html",
-      F("<html><body style='font-family:sans-serif'>Lipseste SSID. "
-        "<a href='/'>inapoi</a></body></html>"));
+      F("<html><body style='font-family:sans-serif'>Missing SSID. "
+        "<a href='/'>back</a></body></html>"));
   }
 }
 
 void startConfigPortal() {
   String ap = "MiniWX-Setup-" + String(ESP.getChipId() & 0xFFFF, HEX);
 
-  // pornire curata a radio-ului (evita ca o incercare STA in curs sa blocheze AP-ul)
+  // clean radio start (prevents an in-progress STA attempt from blocking the AP)
   WiFi.persistent(false);
   WiFi.disconnect(true);
   delay(100);
   WiFi.mode(WIFI_OFF);
   delay(100);
-  WiFi.mode(WIFI_AP_STA);            // AP (config) + STA (scanare retele)
+  WiFi.mode(WIFI_AP_STA);            // AP (config) + STA (network scan)
   delay(200);
 
-  // IP fix si predictibil pentru AP
+  // fixed, predictable IP for the AP
   IPAddress apIP(192, 168, 4, 1), apGW(192, 168, 4, 1), apMask(255, 255, 255, 0);
   WiFi.softAPConfig(apIP, apGW, apMask);
 
-  bool ok = WiFi.softAP(ap.c_str());          // hotspot deschis, canal 1
-  for (uint8_t k = 0; k < 3 && !ok; k++) {    // reincearca daca a esuat
+  bool ok = WiFi.softAP(ap.c_str());          // open hotspot, channel 1
+  for (uint8_t k = 0; k < 3 && !ok; k++) {    // retry if it failed
     delay(300);
     ok = WiFi.softAP(ap.c_str());
   }
 
   Serial.println();
   Serial.println(F("***************************************************"));
-  Serial.println(F("* MOD CONFIGURARE WiFi                            *"));
+  Serial.println(F("* WiFi CONFIGURATION MODE                          *"));
   Serial.print  (F("* Hotspot: "));            Serial.println(ap);
-  Serial.print  (F("* softAP pornit: "));      Serial.println(ok ? F("DA") : F("NU (!!)"));
-  Serial.print  (F("* Deschide in browser: http://")); Serial.println(WiFi.softAPIP());
+  Serial.print  (F("* softAP started: "));     Serial.println(ok ? F("YES") : F("NO (!!)"));
+  Serial.print  (F("* Open in browser: http://")); Serial.println(WiFi.softAPIP());
   Serial.println(F("***************************************************"));
 
   dnsServer.start(53, "*", WiFi.softAPIP());   // captive portal
@@ -2424,10 +2481,18 @@ void startConfigPortal() {
   server.onNotFound(handleWifiPortal);
   server.begin();
 
-  while (true) {                     // ramane aici pana la salvare (care reporneste placa)
+  unsigned long portalStart = millis();
+  while (true) {                     // serve the portal until save OR until timeout
     dnsServer.processNextRequest();
     server.handleClient();
     yield();
+    // Off-grid safety: don't stay in hotspot forever. After the timeout, reboot and
+    // retry the saved network (which may have come back in the meantime).
+    if (millis() - portalStart >= AP_PORTAL_TIMEOUT_MS) {
+      Serial.println(F("[WATCHDOG] hotspot timeout -> restart & retry saved network"));
+      delay(50);
+      ESP.restart();
+    }
   }
 }
 
@@ -2443,6 +2508,7 @@ void ssidConnect()
 
     WiFi.persistent(false);       // WiFi config isn't saved in flash
     WiFi.mode(WIFI_STA);          // use WIFI_AP_STA if you want an AP
+    WiFi.setAutoReconnect(true);  // let the ESP retry the saved network on its own
     WiFi.hostname(WiFi_hostname); // must be called before wifi.begin()
     WiFi.begin(internet.ssid, internet.password);
 
@@ -2459,14 +2525,14 @@ void ssidConnect()
     }
     //****************************************************
 
-    // Asteapta conectarea cu timeout; daca esueaza -> portal AP de reconfigurare
+    // Wait for connection with timeout; if it fails -> AP reconfiguration portal
     unsigned long _wt = millis();
     while (WiFi.status() != WL_CONNECTED) {
       delay(500);
       Serial.print(F("."));
       if (millis() - _wt > WIFI_CONNECT_TIMEOUT_MS) {
-        Serial.println(F("\n[WiFi] timeout -> pornesc portalul AP de configurare"));
-        startConfigPortal();   // nu revine (salveaza din browser si reporneste)
+        Serial.println(F("\n[WiFi] timeout -> starting the AP configuration portal"));
+        startConfigPortal();   // does not return (saves from the browser and reboots)
       }
     }
   }
