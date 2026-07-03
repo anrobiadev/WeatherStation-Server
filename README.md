@@ -3,8 +3,6 @@
 <img width="1801" height="1869" alt="Git" src="https://github.com/user-attachments/assets/533a47f4-2993-4db5-9997-5f287162e472" />
 
 
-
-
 An ESP8266-based amateur-radio **weather server** with a self-contained web interface, live APRS-IS reporting, NTP-synchronised clock and built-in history graphs — no external libraries loaded from the internet, no cloud account, everything served straight from the device.
 
 > **Version v1.7.2** — Originally **inspired by** the [MiniWX project by IU5HKU](https://github.com/IU5HKU/MiniWXStation). The firmware has since been substantially rewritten and is developed and maintained by **YO7ZRO**.
