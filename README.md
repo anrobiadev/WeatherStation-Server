@@ -1,5 +1,6 @@
 # MiniWX Server
 
+<img width="1801" height="1869" alt="Git" src="https://github.com/user-attachments/assets/533a47f4-2993-4db5-9997-5f287162e472" />
 
 
 
