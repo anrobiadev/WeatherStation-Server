@@ -1,6 +1,7 @@
 # MiniWX Server
 
 <img width="1801" height="1869" alt="Git" src="https://github.com/user-attachments/assets/533a47f4-2993-4db5-9997-5f287162e472" />
+<img width="647" height="540" alt="image" src="https://github.com/user-attachments/assets/ea53e389-1e34-41be-83f3-b85b0e7a6980" />
 
 
 An ESP8266-based amateur-radio **weather server** with a self-contained web interface, live APRS-IS reporting, NTP-synchronised clock and built-in history graphs — no external libraries loaded from the internet, no cloud account, everything served straight from the device.
