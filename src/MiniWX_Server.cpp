@@ -14,6 +14,13 @@
 #include "FS.h"
 
 
+//===== EN_Locale content (merged from EN_Locale.h) =====
+//***********************************************************
+//* MINIWX STATION  - MAIN INFO PAGE
+//* improved readability on portable devices by EA1CDV Antonio
+//* WebPages in FLASH and smart dynamics pages from:
+//* http://blog.tldnr.org/2017/10/25/how-to-deliver-larger-web-pages-with-an-esp8266/
+//***********************************************************
 const char PAGE_Main_EN[] PROGMEM = "<!DOCTYPE html>\
 <html>\
 <head>\
@@ -109,7 +116,7 @@ function getData() {\
 </head>\
   <body>\
     <hr>\
-    <h3 style='text-shadow: 2px 1px grey;'>{{callsign}} Weather Server - {{SOFT_VER}} - <a id='clock' class='tabheader' style='padding-right:10px'>{{time}}</a></h3>\
+    <h3 style='text-shadow: 2px 1px grey;'>{{callsign}} Weather Server - {{SOFT_VER}} - <a id='clock' class='tabheader' style='padding-right:10px'>{{time}}</a> - <a href='https://www.southernmanrobbie.com' target='_blank' class='tabheader'>www.southernmanrobbie.com</a></h3>\
     <h4>\
     <fieldset style='width:{{fieldsize0}}'>\
     <legend style='text-shadow: 2px 1px grey;'> {{ChipModel}} </legend>\
