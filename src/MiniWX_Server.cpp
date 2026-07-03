@@ -14,13 +14,6 @@
 #include "FS.h"
 
 
-//===== EN_Locale content (merged from EN_Locale.h) =====
-//***********************************************************
-//* MINIWX STATION  - MAIN INFO PAGE
-//* improved readability on portable devices by EA1CDV Antonio
-//* WebPages in FLASH and smart dynamics pages from:
-//* http://blog.tldnr.org/2017/10/25/how-to-deliver-larger-web-pages-with-an-esp8266/
-//***********************************************************
 const char PAGE_Main_EN[] PROGMEM = "<!DOCTYPE html>\
 <html>\
 <head>\
