@@ -110,11 +110,11 @@ window.addEventListener('load',function(){upDate();getData();setInterval(getData
     <div class='sec-h'><span>Current weather conditions</span><span>{{ChipModel}}</span></div>\
     <div class='row2'>\
       <div class='grid'>\
-        <div class='card'><div class='lab'>Temperature</div><div class='val'><span id='temp'>{{degC}}</span><u>&deg;C</u></div></div>\
-        <div class='card'><div class='lab'>Dew point</div><div class='val'><span id='dewp'>{{DPdegC}}</span><u>&deg;C</u></div></div>\
-        <div class='card'><div class='lab'>Humidity</div><div class='val'><span id='rhum'>{{rHum}}</span><u>%</u></div></div>\
-        <div class='card'><div class='lab'>Pressure</div><div class='val'><span id='pres'>{{mbar}}</span><u>hPa</u></div></div>\
-        <div class='card'><div class='lab'>Heat Index</div><div class='val'><span id='hind'>{{HIdegC}}</span><u>&deg;C</u></div></div>\
+        <div class='card'><div class='lab'>Temperature (&deg;C)</div><div class='val'><span id='temp'>{{degC}}</span></div></div>\
+        <div class='card'><div class='lab'>Dew point (&deg;C)</div><div class='val'><span id='dewp'>{{DPdegC}}</span></div></div>\
+        <div class='card'><div class='lab'>Humidity (%)</div><div class='val'><span id='rhum'>{{rHum}}</span></div></div>\
+        <div class='card'><div class='lab'>Pressure (hPa)</div><div class='val'><span id='pres'>{{mbar}}</span></div></div>\
+        <div class='card'><div class='lab'>Heat Index (&deg;C)</div><div class='val'><span id='hind'>{{HIdegC}}</span></div></div>\
       </div>\
       <div class='card gauge'><svg id='gauge' viewBox='0 0 260 260' style='width:100%;max-width:280px;height:auto'></svg></div>\
     </div>\
@@ -139,7 +139,7 @@ window.addEventListener('load',function(){upDate();getData();setInterval(getData
       <div class='i'><b>RSSI</b><span id='rssi'>{{RSSI}}</span> dBm</div>\
       <div class='i'><b>BSSID</b><span>{{BSSID}}</span></div>\
       <div class='i'><b>IP ADDRESS</b><span>{{myip}}</span></div>\
-      <div class='i'><b>POSITION</b><span>Lat {{lat}} Long {{long}} Alt {{alt}} m</span></div>\
+      <div class='i'><b>POSITION</b><span>Lat {{lat}}<br>Long {{long}}<br>Alt {{alt}} m</span></div>\
     </div>\
   </div>\
 \
@@ -284,6 +284,14 @@ $(document).ready(function(){var lat=document.getElementById('latitude').value;v
                 <label>UTC Offset (hours)</label>\
                 <div><input id='timezone' name='timezone' type='text' maxlength='5' size='5' value='{{timezone}}' placeholder='e.g. 3 or -5'/></div>\
               </fieldset>\
+              <fieldset>\
+              <legend><h2>GPIO Setup</h2></legend>\
+                <label>BME280 SDA pin (GPIO)</label>\
+                <div><input id='sdapin' name='sdapin' type='text' maxlength='2' size='3' value='{{sdapin}}'/></div>\
+                <label>BME280 SCL pin (GPIO)</label>\
+                <div><input id='sclpin' name='sclpin' type='text' maxlength='2' size='3' value='{{sclpin}}'/></div>\
+                <p style='color:#8a9099;font-size:12px;line-height:1.5'>Enter the raw GPIO number. Board pin equivalents:<br>NodeMCU / Wemos D1: D0=16, D1=5, D2=4, D3=0, D4=2, D5=14, D6=12, D7=13, D8=15 (default: SDA=4, SCL=5).<br>ESP-01: GPIO0, GPIO2. Bare ESP-12: use any free GPIO.</p>\
+              </fieldset>\
             </div>\
           </div>\
           <div class='divRow'><div class='divColumn'></br></br></br></div></div>\
@@ -322,7 +330,7 @@ DNSServer dnsServer;                       // captive portal for AP configuratio
 //**************************************
 //* INTERNAL USE & DEBUG               *
 //**************************************
-const char SOFT_VER[] = "v1.8.0";
+const char SOFT_VER[] = "v1.9.0 Mini WX Server";
 //#define DEBUG_READSETTINGSFILE
 //#define DEBUG_FORM_REPLIES
 #define DISPLAY_RW_OUTPUT
@@ -337,6 +345,8 @@ const char SOFT_VER[] = "v1.8.0";
 
 //*** Default sensor read interval (seconds), adjustable from the /settings web page
 #define MEAS_SECONDS_DEF 120
+#define SDA_PIN_DEF 4    // default BME280 I2C SDA (GPIO4 / D2)
+#define SCL_PIN_DEF 5    // default BME280 I2C SCL (GPIO5 / D1)
 
 //**************************************
 //* ADDED FEATURES  - SWITCHES         *
@@ -466,6 +476,8 @@ typedef struct {
   int measSeconds;          // sensor read interval (seconds) - forced, on-demand
   float tempOffset;         // BME280 temperature correction (deg C) - web-configurable
   float timeZone;           // UTC offset (hours, e.g. 3.0 for UTC+3) - web-configurable
+  int sdaPin;               // BME280 I2C SDA GPIO - web-configurable
+  int sclPin;               // BME280 I2C SCL GPIO - web-configurable
 } Settings, *SettingsPtr;
 Settings sets;
 SettingsPtr sets_ptr = &sets;
@@ -842,6 +854,8 @@ void setup(void)
   sets.measSeconds = MEAS_SECONDS_DEF;
   sets.tempOffset  = TEMP_OFFSET_DEF;
   sets.timeZone    = TIME_ZONE;
+  sets.sdaPin      = SDA_PIN_DEF;
+  sets.sclPin      = SCL_PIN_DEF;
 
   if (SPIFFS.exists("/settings.txt") == 0) {
     // absolutely 'first time use', write the defaults values
@@ -852,6 +866,8 @@ void setup(void)
     //read the saved settings
     readSettingsFile();
   }
+  Wire.begin(sets.sdaPin, sets.sclPin);   // re-init I2C on the configured BME280 pins
+
   sets.usewunder = false;   // Wunderground disabled (removed from MiniWX Station)
 
   // Configuration is done from the browser. The serial menu remains optional:
@@ -1213,9 +1229,9 @@ void handleSubmit() {
       {
         // Print SSID and RSSI for each network found
         stations += "<tr>";
-        stations += "<td <td style='text-align:left'>";
+        stations += "<td style='text-align:left'><button type='button' onclick='pickSsid(this)' style='background:none;border:0;color:#FFB000;cursor:pointer;font-size:20px;text-decoration:underline;padding:0'>";
         stations += WiFi.SSID(i);
-        stations += "</td><td>";
+        stations += "</button></td><td>";
         stations += WiFi.RSSI(i);
         stations += "</td><td>";
         stations += WiFi.channel(i);
@@ -1244,22 +1260,24 @@ void handleSubmit() {
       }
       stations += "</tr>";
 
-      if (server.hasHeader("User-Agent")) {
-        if (server.header("User-Agent").indexOf("Android") > 0) {
-          //ANDROID
-          message += F("<fieldset style='width:88%'>");
-        }
-        else {
-          //ALL THE OTHERS (PC for the great majority)
-          message += F("<fieldset style='width:52%'>");
-        }
-      }
+      String scanW = F("52%");
+      if (server.hasHeader("User-Agent") && server.header("User-Agent").indexOf("Android") > 0) scanW = F("88%");
+      message += "<fieldset style='width:" + scanW + "'>";
 
-      message += F("<legend style='text-shadow: 2px 1px grey; font-size: 18px;'>MiniWX&#8482; scanning found ");
+      message += F("<legend style='font-size: 18px;'>MiniWX&#8482; scanning found ");
       message += String(i);
       message += F(" networks </legend>");
       message += stations;
       message += F("</tbody></table></div></fieldset>");
+      message += "<fieldset style='width:" + scanW + ";margin-top:14px'>";
+      message += F("<legend style='font-size:18px;'>Connect to a network</legend>"
+                   "<form action='/wifisave' method='POST'>"
+                   "<p style='color:#8a9099'>Click an SSID above (or type it), enter the password, then Connect.</p>"
+                   "<label>SSID</label><br><input id='selssid' name='ssid' type='text' maxlength='32' size='24' style='padding:8px;border:1px solid #2a2f37;border-radius:6px;background:#1f232a;color:#e8e8e8'/><br>"
+                   "<label>Password</label><br><input name='pass' type='password' maxlength='63' size='24' style='padding:8px;border:1px solid #2a2f37;border-radius:6px;background:#1f232a;color:#e8e8e8'/><br><br>"
+                   "<button type='submit'>Connect &amp; Reboot</button>"
+                   "</form></fieldset>"
+                   "<script>function pickSsid(b){document.getElementById('selssid').value=b.textContent;}</script>");
       //message += F("<form>"); // Already in HTTP_EXIT_BUTN
       message += FPSTR(HTTP_EXIT_BUTN);
 
@@ -1304,6 +1322,8 @@ void handleSubmit() {
         if (server.argName(i) == F("ntpserver")) server.arg(i).toCharArray(sets.NTP_Server, 20);
         if (server.argName(i) == F("ntpsyncdelay")) sets.NTP_SYNC_DELAY = server.arg(i).toInt();
         if (server.argName(i) == F("timezone"))     sets.timeZone  = server.arg(i).toFloat();
+        if (server.argName(i) == F("sdapin"))       sets.sdaPin    = server.arg(i).toInt();
+        if (server.argName(i) == F("sclpin"))       sets.sclPin    = server.arg(i).toInt();
 
         //static ip
         if (server.argName(i) == F("usestatic") && server.arg(i) == "true") sets.usestaticip = true;
@@ -1430,6 +1450,8 @@ void handleSettings() {
   page.replace(F("{{ntpserver}}"), sets.NTP_Server);
   page.replace(F("{{ntpsyncdelay}}"), String(sets.NTP_SYNC_DELAY));
   page.replace(F("{{timezone}}"), String(sets.timeZone, 1));
+  page.replace(F("{{sdapin}}"), String(sets.sdaPin));
+  page.replace(F("{{sclpin}}"), String(sets.sclPin));
 
   //STATICIP placeholders
   if (sets.usestaticip) {
@@ -2731,9 +2753,9 @@ void handleWifiSave() {
     server.send(200, "text/html",
       F("<!DOCTYPE html><html><head><meta charset='utf-8'>"
         "<meta http-equiv='refresh' content='12;url=/'></head>"
-        "<body style='font-family:sans-serif'>"
-        "<h3>Saved. Rebooting and connecting...</h3>"
-        "<p>If the network is correct, the board appears on the network within a few seconds.</p></body></html>"));
+        "<body style='font-family:\"Segoe UI\",Arial,sans-serif;background:#0d0f12;color:#e8e8e8;margin:18px auto;max-width:480px;padding:0 14px'>"
+        "<h3 style='color:#FFB000'>Saved. Rebooting and connecting...</h3>"
+        "<p style='color:#8a9099'>If the network is correct, the board appears on the network within a few seconds.</p></body></html>"));
     delay(900);
     ESP.restart();
   } else {
