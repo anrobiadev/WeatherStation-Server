@@ -54,18 +54,19 @@ const char HTTP_REBOOT_SCRIPT[] PROGMEM = "<script>\
                                     </script></head>";
 const char HTTP_NO_SCRIPT[] PROGMEM = "<script></script></head>";
 const char HTTP_STYLE[] PROGMEM = "<style>\
-  body { background-color: #000000; font-family: Arial, Helvetica, Sans-Serif; Color: #FFB000; font-size: 32px;}\
-  fieldset { border:1px solid #999; border-radius:8px; box-shadow:0 0 10px #999;}\
-  legend  { background:#000;}\
-  .divTable { width: 100%; display:block; padding-top:10px; padding-bottom:10px; padding-right:10px; padding-left:10px;}\
-  .divRow { width: 99%; display:block; padding-bottom:5px;}\
-  .divColumn { float: left; width: 24%; display:block; padding-left:8px; }\
-  .tabheader { border-style: solid; border-radius:8px; border-color: grey; box-shadow:0 0 8px #999; padding-left:10px;}\
-  th { border-style: solid; border-radius:8px; border-color: grey; box-shadow:0 0 8px #999; padding-left:10px; background:#FFB000; Color:#000}\
-  .notabheader { border-style: solid; border-radius:8px; border-color: black; box-shadow:0 0 8px #999; padding-left:10px;}\
-  td { border-style: solid; border-radius:8px; border-color: black; box-shadow:0 0 8px #999; padding-left:10px;}\
-  button { padding: 1px 6px 1px 6px;}\
-  button > img,button > span { vertical-align: middle;}\
+:root{--bg:#0d0f12;--card:#181b20;--card2:#1f232a;--acc:#FFB000;--txt:#e8e8e8;--mut:#8a9099;--line:#2a2f37;}\
+body{margin:0;background:var(--bg);color:var(--txt);font-family:'Segoe UI',Arial,sans-serif;font-size:16px;padding:16px;}\
+fieldset{border:1px solid var(--line);border-radius:10px;box-shadow:none;background:var(--card);padding:14px 16px;}\
+legend{background:transparent;color:var(--acc);}\
+.divTable{width:100%;display:block;padding:8px 0;}\
+.divRow{width:100%;display:block;padding-bottom:6px;}\
+.divColumn{float:left;width:24%;display:block;padding-left:8px;}\
+.tabheader,th{border:1px solid var(--line);border-radius:8px;box-shadow:none;padding:8px 12px;background:var(--card2);color:var(--txt);}\
+.notabheader,td{border:1px solid var(--line);border-radius:8px;box-shadow:none;padding:8px 12px;color:var(--txt);}\
+button{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:9px 18px;font-size:14px;cursor:pointer;}\
+button:hover{background:var(--acc);color:#000;}\
+button > img,button > span{vertical-align:middle;}\
+a{color:var(--acc);}\
 </style>";
 const char HTTP_BODY[] PROGMEM = "<body>";
 const char HTTP_FOOT[] PROGMEM = "</body></html>";
@@ -217,7 +218,7 @@ function drawChart(id,vals,color,unit,fmt){\
 }\
 window.onload=function(){\
   if(typeof graphData==='undefined'||!graphData.length)return;\
-  drawChart('svgChart_temp',graphData.map(function(d){return d.temp;}),'#FFB000','°C',function(v){return v.toFixed(1);});\
+  drawChart('svgChart_temp',graphData.map(function(d){return d.temp;}),'#FFB000','°C',function(v){return v.toFixed(2);});\
   drawChart('svgChart_pres',graphData.map(function(d){return d.pres/100;}),'#4FC3F7','hPa',function(v){return v.toFixed(1);});\
   drawChart('svgChart_rhum',graphData.map(function(d){return d.rhum;}),'#81C784','%',function(v){return v.toFixed(0);});\
   drawChart('svgChart_rssi',graphData.map(function(d){return d.rssi;}),'#EF9A9A','dBm',function(v){return '-'+Math.abs(v).toFixed(0);});\
@@ -284,6 +285,7 @@ const char HTTP_GRID_CONT_STYLE[] PROGMEM = "<style>\
   grid-row: 2;\
 }\
 </style>";
+
 
 const char HTTP_EXIT_BUTN[] PROGMEM = "<form>\
   <input class='butn' type='button' onclick='javascript:window.history.go(-1);' style='background-image: url(data:image/png;base64,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);' value='{{exit_btn}}' >\
