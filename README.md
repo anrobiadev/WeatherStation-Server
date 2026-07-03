@@ -1,7 +1,8 @@
 # MiniWX Server
 <img width="989" height="856" alt="image" src="https://github.com/user-attachments/assets/c37623db-d27e-4ad2-a090-f5a826033c73" />
 
-<img width="1093" height="869" alt="image" src="https://github.com/user-attachments/assets/f84665f8-b534-4b2a-b709-0e85d8a03979" />
+<img width="827" height="997" alt="image" src="https://github.com/user-attachments/assets/011310f0-f9f4-4d16-a5a8-ab0f900c74f2" />
+
 
 
 
